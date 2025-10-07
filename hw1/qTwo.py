@@ -5,16 +5,14 @@ import matplotlib.pyplot as plt
 import os
 
 def downSampleByHalf(image):
-    imageHalf = np.delete(image, list(range(1,image.shape[0],2)),axis = 1) #downsize one axis
-    imageHalfHalf = np.delete(imageHalf, list(range(1, image.shape[1],2)),axis = 0) #downsize the other
-    return imageHalfHalf
+    return image[::2,::2]
 
 def gaussianAndList(list):
     gaussianCurrentLevel = downSampleByHalf(ski.filters.gaussian(list[-1])) #downsample a gaussian convoluted image
     list.append(gaussianCurrentLevel) #add it to the list
 
 def laplacianAndList(laplacianList, gaussianList, index):
-    laplacianCurrentLevel = np.subtract(gaussianList[index], ski.filters.gaussian(gaussianList[index]))
+    laplacianCurrentLevel = np.subtract(gaussianList[index], ski.filters.gaussian(gaussianList[index], sigma = 1))
     #subtract one level of gaussian pyramid with the gaussian convoluted version of itself
     laplacianList.append(laplacianCurrentLevel)
 
@@ -26,7 +24,7 @@ gaussianList = [] #to store gaussian pyramid images
 
 laplacianList = [] #to store laplacian pyramid images
 
-gaussianLevel0 = ski.filters.gaussian(baseLevel) #512x512 gaussianed image, sigma = 1
+gaussianLevel0 = ski.filters.gaussian(baseLevel, sigma = 1) #512x512 gaussianed image, sigma = 1
 
 laplacianLevel0 = np.subtract(baseLevel, gaussianLevel0)
 
