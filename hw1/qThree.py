@@ -44,7 +44,7 @@ Ixx = np.square(Ix)
 Iyy = np.square(Iy)
 Ixy = np.multiply(Ix, Iy)
 
-#compute averaged derivatives over the 3 x 3 window
+#compute averaged derivatives over the 3 x 3 window by convoluting 
 window = np.ones(shape = (3,3)) / 9.0
 
 structureDerivIxx = convolve2d(Ixx, window, mode='same', boundary='symm')
@@ -73,7 +73,6 @@ for i in range(0,512):
         trace = eigenValues[1] + eigenValues[0]
         determinant = eigenValues[1] * eigenValues[0]
         CRFValue = determinant - (k * (trace**2))
-        #push opposite sign of CRFValue to minheap
         topCorners.append((CRFValue, (i,j)))
 print("Done!")
 
