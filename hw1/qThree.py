@@ -12,7 +12,9 @@ def nonMaximumSuppression(points, radius=5):
     suppressed = np.zeros((512,512), dtype=bool)
     kept = []
 
-    for response, (x, y) in points:
+    for response, coord in points:
+        y = coord[1]
+        x = coord[0]
         if suppressed[y, x]:
             continue  # already suppressed by a stronger neighbor
 
@@ -38,8 +40,6 @@ smoothedKavli = ski.filters.gaussian(baseLevel, sigma = 2) #smooth before taking
 Ix = ski.filters.sobel_v(smoothedKavli)
 Iy = ski.filters.sobel_h(smoothedKavli)
 
-# print(Ix)
-# test = input()
 Ixx = np.square(Ix)
 Iyy = np.square(Iy)
 Ixy = np.multiply(Ix, Iy)
@@ -51,14 +51,10 @@ structureDerivIxx = convolve2d(Ixx, window, mode='same', boundary='symm')
 structureDerivIxy = convolve2d(Ixy, window, mode='same', boundary='symm')
 structureDerivIyy = convolve2d(Iyy, window, mode='same', boundary='symm')
 
-# openCvIxx = cv2.filter2D(Ixx, -1, window, (-1,-1), delta = 0,borderType = cv2.BORDER_CONSTANT)
-# openCvIxy = cv2.filter2D(Ixy, -1, window, (-1,-1), delta = 0,borderType = cv2.BORDER_CONSTANT)
-# openCvIyy = cv2.filter2D(Iyy, -1, window, (-1,-1), delta = 0,borderType = cv2.BORDER_CONSTANT)
+#stores CRF values but not in correct order yet
+topCorners = []
 
-#stores CRF values in a min heap, flip the sign of the score to accurately reflect top corner scores
-CRFHeap = []
-
-#iterate thru all pixels
+#iterate thru all pixels and compute structure tensors
 print("Computing local structure tensors...")
 
 for i in range(0,512):
@@ -78,25 +74,22 @@ for i in range(0,512):
         determinant = eigenValues[1] * eigenValues[0]
         CRFValue = determinant - (k * (trace**2))
         #push opposite sign of CRFValue to minheap
-        heapq.heappush(CRFHeap,(CRFValue, (i,j))) #turn to max heap after sorting normally
-#371 183
+        topCorners.append((CRFValue, (i,j)))
 print("Done!")
 
-heapq.heapify(CRFHeap)
-CRFHeap.sort(reverse=True)
-# topCorners = nonMaximumSuppression(CRFHeap)
-topCorners = []
-for i in range(0,50):
-    topCorners.append(CRFHeap.pop(0)[1])
+topCorners.sort(reverse = True) #sort reverse to put largest CRF values (corners) at the front (sort normal order for edges)
+CRFTopCornerCoords = nonMaximumSuppression(topCorners) #choose best features in areas
+CRFTopCornerCoords = CRFTopCornerCoords[:50] #top 50 corners or edges depending on sort order
 
+#add extra dimension for color on circles
 kavliWithCorners = np.repeat(baseLevel[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
 
-
-for coordinatePair in topCorners:
-    # print(coordinatePair[0], coordinatePair[1])
+#draw circles at best corners/edges
+for value, coordinatePair in CRFTopCornerCoords:
     row, col = ski.draw.circle_perimeter(coordinatePair[0], coordinatePair[1], 4, shape = kavliWithCorners.shape)
     kavliWithCorners[row,col,:] = (255,255,0)
 
+#setup for image display through matplotlib
 dpi = 100
 height, width = kavliWithCorners.shape[:2]
 figsize = width / dpi, height / dpi
@@ -106,6 +99,3 @@ plt.axis("off")
 plt.tight_layout(pad = 0)
 #label and show the image
 plt.show()
-
-#coordinates might be flipped
-#pop returns the tail
