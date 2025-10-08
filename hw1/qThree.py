@@ -4,22 +4,46 @@ import matplotlib
 import matplotlib.pyplot as plt
 import os
 import heapq
+import cv2
 from scipy.signal import convolve2d
+from scipy import ndimage
+
+def nonMaximumSuppression(points, radius=5):
+    suppressed = np.zeros((512,512), dtype=bool)
+    kept = []
+
+    for response, (x, y) in points:
+        if suppressed[y, x]:
+            continue  # already suppressed by a stronger neighbor
+
+        kept.append((response, (x, y)))
+
+        # Suppress neighbors within radius
+        yMin = max(0, y - radius)
+        yMax = min(512, y + radius + 1)
+        xMin = max(0, x - radius)
+        xMax = min(512, x + radius + 1)
+
+        suppressed[yMin:yMax, xMin:xMax] = True
+
+    return kept
 
 pathToBase = os.path.join(os.getcwd(),"upperleftcorner.png") #path to greyscale kavli upperleft corner
 baseLevel = ski.io.imread(pathToBase) #read image into baseLevel variable
 #remove rgba and ensure double values
 baseLevel = baseLevel[:,:,0]
-baseLevel = baseLevel.astype(np.double)
-smoothedKavli = ski.filters.gaussian(baseLevel, sigma = 1) #smooth before taking derivatives
+baseLevel = baseLevel.astype(np.float32)
+smoothedKavli = ski.filters.gaussian(baseLevel, sigma = 2) #smooth before taking derivatives
 #compute derivatives
 Ix = ski.filters.sobel_v(smoothedKavli)
 Iy = ski.filters.sobel_h(smoothedKavli)
+
 # print(Ix)
 # test = input()
 Ixx = np.square(Ix)
 Iyy = np.square(Iy)
 Ixy = np.multiply(Ix, Iy)
+
 #compute averaged derivatives over the 3 x 3 window
 window = np.ones(shape = (3,3)) / 9.0
 
@@ -27,31 +51,22 @@ structureDerivIxx = convolve2d(Ixx, window, mode='same', boundary='symm')
 structureDerivIxy = convolve2d(Ixy, window, mode='same', boundary='symm')
 structureDerivIyy = convolve2d(Iyy, window, mode='same', boundary='symm')
 
+# openCvIxx = cv2.filter2D(Ixx, -1, window, (-1,-1), delta = 0,borderType = cv2.BORDER_CONSTANT)
+# openCvIxy = cv2.filter2D(Ixy, -1, window, (-1,-1), delta = 0,borderType = cv2.BORDER_CONSTANT)
+# openCvIyy = cv2.filter2D(Iyy, -1, window, (-1,-1), delta = 0,borderType = cv2.BORDER_CONSTANT)
 
 #stores CRF values in a min heap, flip the sign of the score to accurately reflect top corner scores
 CRFHeap = []
 
 #iterate thru all pixels
 print("Computing local structure tensors...")
-# localStructureTensor = np.array([[structureDerivIxx[413,332], structureDerivIxy[413,332]],\
-#                                                [structureDerivIxy[413,332], structureDerivIyy[413,332]]],\
-#                                                 dtype = np.double)
-# eigenValues, eigenVectors = np.linalg.eig(localStructureTensor)
-# print(len(eigenValues), 'size')
-# print(eigenValues[0], eigenValues[1])
-# eigenValues[0] = 0 if eigenValues[0] < 0 else eigenValues[0]
-# eigenValues[1] = 0 if eigenValues[1] < 0 else eigenValues[1]
-# k = 0.04
-# trace = eigenValues[1] + eigenValues[0]
-# determinant = eigenValues[1] * eigenValues[0]
-# CRFValue = determinant - (k * (trace**2))
-# print(CRFValue)
+
 for i in range(0,512):
     for j in range(0,512):
         #compute local structure tensor A for pixel(i,j)
         localStructureTensor = np.array([[structureDerivIxx[i,j], structureDerivIxy[i,j]],\
                                                [structureDerivIxy[i,j], structureDerivIyy[i,j]]],\
-                                                dtype = np.double)
+                                                dtype = np.float32)
         #compute eigen values
         eigenValues, eigenVectors = np.linalg.eig(localStructureTensor)
         #if negative due to noise, or floating point precision, set to 0
@@ -63,16 +78,19 @@ for i in range(0,512):
         determinant = eigenValues[1] * eigenValues[0]
         CRFValue = determinant - (k * (trace**2))
         #push opposite sign of CRFValue to minheap
-        # print(CRFValue, (i,j))
-        heapq.heappush(CRFHeap,(-CRFValue, (i,j)))
+        heapq.heappush(CRFHeap,(CRFValue, (i,j))) #turn to max heap after sorting normally
+#371 183
 print("Done!")
-#413,332 is a good corner pixel
-topCorners = []
+
 heapq.heapify(CRFHeap)
+CRFHeap.sort(reverse=True)
+# topCorners = nonMaximumSuppression(CRFHeap)
+topCorners = []
 for i in range(0,50):
-    topCorners.append(CRFHeap.pop()[1])
+    topCorners.append(CRFHeap.pop(0)[1])
 
 kavliWithCorners = np.repeat(baseLevel[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
+
 
 for coordinatePair in topCorners:
     # print(coordinatePair[0], coordinatePair[1])
@@ -88,3 +106,6 @@ plt.axis("off")
 plt.tight_layout(pad = 0)
 #label and show the image
 plt.show()
+
+#coordinates might be flipped
+#pop returns the tail
