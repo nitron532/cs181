@@ -1,12 +1,8 @@
 import numpy as np
 import skimage as ski
-import matplotlib
 import matplotlib.pyplot as plt
 import os
-import heapq
-import cv2
 from scipy.signal import convolve2d
-from scipy import ndimage
 
 def nonMaximumSuppression(points, radius=5):
     suppressed = np.zeros((512,512), dtype=bool)
