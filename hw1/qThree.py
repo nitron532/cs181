@@ -51,8 +51,6 @@ structureDerivIyy = convolve2d(Iyy, window, mode='same', boundary='symm')
 topCorners = []
 
 #iterate thru all pixels and compute structure tensors
-print("Computing local structure tensors...")
-
 for i in range(0,512):
     for j in range(0,512):
         #compute local structure tensor A for pixel(i,j)
@@ -70,7 +68,6 @@ for i in range(0,512):
         determinant = eigenValues[1] * eigenValues[0]
         CRFValue = determinant - (k * (trace**2))
         topCorners.append((CRFValue, (i,j)))
-print("Done!")
 
 topCorners.sort(reverse = True) #sort reverse to put largest CRF values (corners) at the front (sort normal order for edges)
 CRFTopCornerCoords = nonMaximumSuppression(topCorners) #choose best features in areas
