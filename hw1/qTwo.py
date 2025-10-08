@@ -20,6 +20,9 @@ pathToBase = os.path.join(os.getcwd(),"upperleftcorner.png") #path to greyscale 
 
 baseLevel = ski.io.imread(pathToBase) #read image into baseLevel variable
 
+baseLevel = baseLevel[:, :, 0] #remove any rgba value
+baseLevel = baseLevel.astype(np.double) #ensure double values
+
 gaussianList = [] #to store gaussian pyramid images
 
 laplacianList = [] #to store laplacian pyramid images
