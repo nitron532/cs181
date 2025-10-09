@@ -31,10 +31,9 @@ baseLevel = ski.io.imread(pathToBase) #read image into baseLevel variable
 #remove rgba and ensure double values
 baseLevel = baseLevel[:,:,0]
 baseLevel = baseLevel.astype(np.float32)
-smoothedKavli = ski.filters.gaussian(baseLevel, sigma = 2) #smooth before taking derivatives
 #compute derivatives
-Ix = ski.filters.sobel_v(smoothedKavli)
-Iy = ski.filters.sobel_h(smoothedKavli)
+Ix = ski.filters.sobel_v(baseLevel)
+Iy = ski.filters.sobel_h(baseLevel)
 
 Ixx = np.square(Ix)
 Iyy = np.square(Iy)
@@ -43,9 +42,9 @@ Ixy = np.multiply(Ix, Iy)
 #compute averaged derivatives over the 3 x 3 window by convoluting 
 window = np.ones(shape = (3,3)) / 9.0
 
-structureDerivIxx = convolve2d(Ixx, window, mode='same', boundary='symm')
-structureDerivIxy = convolve2d(Ixy, window, mode='same', boundary='symm')
-structureDerivIyy = convolve2d(Iyy, window, mode='same', boundary='symm')
+structureDerivIxx = convolve2d(Ixx, window, mode='same', boundary='fill')
+structureDerivIxy = convolve2d(Ixy, window, mode='same', boundary='fill')
+structureDerivIyy = convolve2d(Iyy, window, mode='same', boundary='fill')
 
 #stores CRF values but not in correct order yet
 topCorners = []
@@ -91,3 +90,5 @@ plt.axis("off")
 plt.tight_layout(pad = 0)
 #label and show the image
 plt.show()
+for value, coord in CRFTopCornerCoords:
+    print(coord[1],",", coord[0])
