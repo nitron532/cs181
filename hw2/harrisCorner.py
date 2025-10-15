@@ -5,8 +5,8 @@ import os
 from scipy.signal import convolve2d
 from scipy.signal import convolve
 
-def nonMaximumSuppression(points, radius=5):
-    suppressed = np.zeros((512,512), dtype=bool)
+def nonMaximumSuppression(points, shape, radius=5):
+    suppressed = np.zeros(shape, dtype=bool)
     kept = []
 
     for response, coord in points:
@@ -28,18 +28,18 @@ def nonMaximumSuppression(points, radius=5):
     return kept
 
 
-def harrisCorner(fileName): #color png that must be in the same directory as calling file
-    pathToBase = os.path.join(os.getcwd(),fileName) #path to greyscale kavli upperleft corner
-    baseLevel = ski.io.imread(pathToBase) #read image into baseLevel variable
+def harrisCorner(fileName, sigma, top,radius): #color png that must be in the same directory as calling file
+    # pathToBase = os.path.join(os.getcwd(),fileName) #path to greyscale kavli upperleft corner
+    # baseLevel = ski.io.imread(pathToBase) #read image into baseLevel variable
     #remove rgba and ensure double values
-    baseLevel = baseLevel[:,:,0]
+    baseLevel = fileName #if you pass in an ndarray
+    # baseLevel = baseLevel[:,:,1] #enable this for kavli
     baseLevel = baseLevel.astype(np.float32)
+    # baseLevel = ski.color.rgb2gray(baseLevel)
+    baseLevel = ski.filters.gaussian(baseLevel, sigma)
+    # plt.imshow(baseLevel, cmap = "gray", interpolation="nearest")
+    # plt.show()
     #compute derivatives
-
-    # Sx = np.array([[-1,0,1],[-2,0,2],[-1,0,1]])
-    # Sy = np.array([[-1,-2,-1],[0,0,0],[1,2,1]])
-    # Ix = convolve(baseLevel, Sx, mode = "same")
-    # Iy = convolve(baseLevel, Sy, mode = "same")
 
     Ix = ski.filters.sobel_v(baseLevel)
     Iy = ski.filters.sobel_h(baseLevel)
@@ -59,8 +59,9 @@ def harrisCorner(fileName): #color png that must be in the same directory as cal
     topCorners = []
 
     #iterate thru all pixels and compute structure tensors
-    for i in range(0,512):
-        for j in range(0,512):
+    numRows, numCols = baseLevel.shape
+    for i in range(0,numRows):
+        for j in range(0,numCols):
             #compute local structure tensor A for pixel(i,j)
             localStructureTensor = np.array([[structureDerivIxx[i,j], structureDerivIxy[i,j]],\
                                                 [structureDerivIxy[i,j], structureDerivIyy[i,j]]],\
@@ -78,26 +79,24 @@ def harrisCorner(fileName): #color png that must be in the same directory as cal
             topCorners.append((CRFValue, (i,j)))
 
     topCorners.sort(reverse = True) #sort reverse to put largest CRF values (corners) at the front (sort normal order for edges)
-    CRFTopCornerCoords = nonMaximumSuppression(topCorners) #choose best features in areas
-    CRFTopCornerCoords = CRFTopCornerCoords[:50] #top 50 corners or edges depending on sort order
+    CRFTopCornerCoords = nonMaximumSuppression(topCorners, baseLevel.shape) #choose best features in areas
+    CRFTopCornerCoords = CRFTopCornerCoords[:top] #top (top) corners or edges depending on sort order
 
-    #add extra dimension for color on circles
-    kavliWithCorners = np.repeat(baseLevel[:, :, np.newaxis], 3, axis=2).astype(np.uint8)
+    display_img = np.stack([baseLevel]*3, axis=-1)     # shape (h,w,3)
+    display_img = (display_img*255).astype(np.uint8) # convert 0-1 float to uint8
+    #add the *255 for black square problem
+    # plt.imshow(display_img, cmap = "gray", interpolation= "nearest")
+    # plt.show()
 
-    #draw circles at best corners/edges
-    for value, coordinatePair in CRFTopCornerCoords:
-        row, col = ski.draw.circle_perimeter(coordinatePair[0], coordinatePair[1], 4, shape = kavliWithCorners.shape)
-        kavliWithCorners[row,col,:] = (255,255,0)
+# Draw yellow circles at corners
+    for value, (r, c) in CRFTopCornerCoords:
+        rr, cc = ski.draw.circle_perimeter(int(r), int(c), radius, shape=baseLevel.shape)
+        display_img[rr, cc] = [255, 255, 0]  # yellow (BGR if OpenCV, RGB here)
 
-#setup for image display through matplotlib
-# dpi = 100
-# height, width = kavliWithCorners.shape[:2]
-# figsize = width / dpi, height / dpi
-# plt.figure(figsize=figsize, dpi=dpi)
-# plt.imshow(kavliWithCorners, interpolation = 'nearest')
-# plt.axis("off")
-# plt.tight_layout(pad = 0)
-# #label and show the image
-# plt.show()
-# for value, coord in CRFTopCornerCoords:
-#     print(coord[1],",", coord[0])
+    plt.imshow(display_img, cmap = "gray", interpolation = 'nearest')
+    plt.show()
+    # for value, coord in CRFTopCornerCoords:
+    #     print(coord[1],",", coord[0])
+
+# b = ski.io.imread("upperleftcorner.png")
+# harrisCorner(b, 1, 50,4)
