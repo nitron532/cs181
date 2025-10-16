@@ -10,8 +10,15 @@ def downSampleByHalf(image):
 
 def showMPL(image):
     plt.imshow(image, cmap = "gray", interpolation = "nearest")
-    # plt.axis("off")
     plt.show()
+    # dpi = 100
+    # height, width = image.shape[:2]
+    # figsize = width / dpi, height / dpi
+    # plt.figure(figsize=figsize, dpi=dpi)
+    # plt.imshow(image, cmap = "gray", interpolation = 'nearest')
+    # plt.axis("off")
+    # plt.tight_layout(pad = 0)
+    # plt.show()
 
 def showCV(image):
     cv2.imshow("", image)
@@ -64,13 +71,13 @@ def logWithFeatures(image, sigma, size=None):
 blackSquareSm = np.ones((100,100))
 blackSquareSm[50:80,50:80] = 0
 toRotate = blackSquareSm
-showMPL(blackSquareSm)
+# showMPL(blackSquareSm)
 blackSquares = np.ones((512,512))
 blackSquares[60:100,60:100] = 0
 blackSquares[300:380,180:260] = 0
 blackSquares[100:220,300:420] = 0
 blackSquares[340:480,340:480] = 0
-showMPL(blackSquares)
+# showMPL(blackSquares)
 
 # #2.
 sigmaList = [1,2,4,8]
@@ -97,7 +104,6 @@ for i in sigmaList:
 
 #3
 toRotate= ndimage.rotate(toRotate, angle = 30, reshape = False,cval = 1, order = 0)
-showMPL(toRotate)
 
 for i in sigmaList:
     harrisCorner(toRotate, i, 4,1)
@@ -151,15 +157,28 @@ for i in downSampledGaussians:
     index+=1
 
 #c
-for i in range(1,5):
-    logged, x,y = logWithFeatures(downSampledGaussians[i], sigmaList[i-1])
-    #k = 1.5 
-    display_img = np.stack([logged]*3, axis=-1)     # shape (h,w,3)
-    display_img = (display_img*255).astype(np.uint8) # convert 0-1 float to uint8
+display_img = np.stack([blackSquares]*3, axis=-1)     # shape (h,w,3)
+display_img = (display_img*255).astype(np.uint8) # convert 0-1 float to uint8
+for i in range(0,4):
+    log, x,y = logWithFeatures(downSampledGaussians[i], sigmaList[i])
+    logged = np.stack([log]*3, axis=-1)
+    logged = (logged*255).astype(np.uint8)
+    for xLog,yLog in zip(x,y):
+        rr, cc = ski.draw.circle_perimeter(int(round(yLog)), int(round(xLog)), sigmaList[i]+1, shape=logged.shape)
+        logged[rr,cc] = [255,0,0]
+    showMPL(logged)
     #add the *255 for black square problem
-# Draw red circles at corners
-    for xcoord,ycoord in zip(x,y):
-        rr, cc = ski.draw.circle_perimeter(int(xcoord), int(ycoord), sigmaList[i-1], shape=logged.shape)
-        display_img[rr, cc] = [255, 0, 0]  # red (BGR if OpenCV, RGB here)
-    showMPL(display_img)
+    scale = 2 ** i
+    # offset = 0.5 * (scale)
+    x_original = [xcoord * scale  for xcoord in x]
+    y_original = [ycoord * scale  for ycoord in y]
+    # Draw red circles
+    for xcoord,ycoord in zip(x_original,y_original):
+        rr, cc = ski.draw.circle_perimeter(int(round(ycoord)), int(round(xcoord)), sigmaList[i]+2, shape=blackSquares.shape)
+        match i:
+            case 0: display_img[rr, cc] = [255,0,0]  # red 
+            case 1: display_img[rr,cc] = [255,255,0] #yellow
+            case 2: display_img[rr,cc] = [0,255,0] #green
+            case 3: display_img[rr,cc] = [0,0,255] #blue
+showMPL(display_img)
 
