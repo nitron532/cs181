@@ -36,9 +36,8 @@ def harrisCorner(fileName, sigma, top,radius): #color png that must be in the sa
     # baseLevel = baseLevel[:,:,1] #enable this for kavli
     baseLevel = baseLevel.astype(np.float32)
     # baseLevel = ski.color.rgb2gray(baseLevel)
-    baseLevel = ski.filters.gaussian(baseLevel, sigma)
-    # plt.imshow(baseLevel, cmap = "gray", interpolation="nearest")
-    # plt.show()
+    if sigma != -1:
+        baseLevel = ski.filters.gaussian(baseLevel, sigma)
     #compute derivatives
 
     Ix = ski.filters.sobel_v(baseLevel)
@@ -88,10 +87,10 @@ def harrisCorner(fileName, sigma, top,radius): #color png that must be in the sa
     # plt.imshow(display_img, cmap = "gray", interpolation= "nearest")
     # plt.show()
 
-# Draw yellow circles at corners
+# Draw red circles at corners
     for value, (r, c) in CRFTopCornerCoords:
         rr, cc = ski.draw.circle_perimeter(int(r), int(c), radius, shape=baseLevel.shape)
-        display_img[rr, cc] = [255, 255, 0]  # yellow (BGR if OpenCV, RGB here)
+        display_img[rr, cc] = [255, 0, 0]  # red (BGR if OpenCV, RGB here)
 
     plt.imshow(display_img, cmap = "gray", interpolation = 'nearest')
     plt.show()
