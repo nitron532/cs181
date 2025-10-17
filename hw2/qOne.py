@@ -71,13 +71,13 @@ def logWithFeatures(image, sigma, size=None):
 blackSquareSm = np.ones((100,100))
 blackSquareSm[50:80,50:80] = 0
 toRotate = blackSquareSm
-# showMPL(blackSquareSm)
+showMPL(blackSquareSm)
 blackSquares = np.ones((512,512))
 blackSquares[60:100,60:100] = 0
 blackSquares[300:380,180:260] = 0
 blackSquares[100:220,300:420] = 0
 blackSquares[340:480,340:480] = 0
-# showMPL(blackSquares)
+showMPL(blackSquares)
 
 # #2.
 sigmaList = [1,2,4,8]
@@ -163,16 +163,12 @@ for i in range(0,4):
     log, x,y = logWithFeatures(downSampledGaussians[i], sigmaList[i])
     logged = np.stack([log]*3, axis=-1)
     logged = (logged*255).astype(np.uint8)
-    for xLog,yLog in zip(x,y):
-        rr, cc = ski.draw.circle_perimeter(int(round(yLog)), int(round(xLog)), sigmaList[i]+1, shape=logged.shape)
-        logged[rr,cc] = [255,0,0]
     showMPL(logged)
     #add the *255 for black square problem
     scale = 2 ** i
-    # offset = 0.5 * (scale)
     x_original = [xcoord * scale  for xcoord in x]
     y_original = [ycoord * scale  for ycoord in y]
-    # Draw red circles
+    # Draw circles
     for xcoord,ycoord in zip(x_original,y_original):
         rr, cc = ski.draw.circle_perimeter(int(round(ycoord)), int(round(xcoord)), sigmaList[i]+2, shape=blackSquares.shape)
         match i:
