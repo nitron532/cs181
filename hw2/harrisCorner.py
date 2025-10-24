@@ -3,7 +3,6 @@ import skimage as ski
 import matplotlib.pyplot as plt
 import os
 from scipy.signal import convolve2d
-from scipy.signal import convolve
 
 def nonMaximumSuppression(points, shape, radius=5):
     suppressed = np.zeros(shape, dtype=bool)
@@ -93,9 +92,9 @@ def harrisCorner(fileName, sigma, top,radius): #color png that must be in the sa
         display_img[rr, cc] = [255, 0, 0]  # red (BGR if OpenCV, RGB here)
 
     plt.imshow(display_img, cmap = "gray", interpolation = 'nearest')
+    for value, coord in CRFTopCornerCoords:
+        print(coord[1],",", coord[0])
     plt.show()
-    # for value, coord in CRFTopCornerCoords:
-    #     print(coord[1],",", coord[0])
 
 # b = ski.io.imread("upperleftcorner.png")
 # harrisCorner(b, 1, 50,4)
