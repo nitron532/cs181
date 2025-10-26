@@ -5,7 +5,7 @@ import cv2
 import os
 from scipy import ndimage
 from scipy.spatial.distance import cdist
-import ipdb
+
 def downSampleByHalf(image):
     return image[::2,::2]
 
@@ -19,37 +19,9 @@ def showMPLDots(rgb,x,y):
     plt.plot(x,y, 'ro')
     plt.show()
 
-# def manhattan_distance(a, b):
-#     # a = np.asarray(a)
-#     # b = np.asarray(b)
-#     if a.shape != b.shape:
-#         raise ValueError(f"Arrays must have the same shape, got {a.shape} and {b.shape}")
-#     return np.sum(np.abs(a - b))
-
 def euclidean_distance(a,b):
     return np.linalg.norm(a-b)
 
-
-# Initialize the SIFT detector
-# sift = cv2.SIFT_create()
-
-# bgrA = cv2.imread("imgA.png")
-# bgrB = cv2.imread("imgB.png")
-
-# grayA = cv2.cvtColor(bgrA, cv2.COLOR_BGR2GRAY)
-# grayB = cv2.cvtColor(bgrB, cv2.COLOR_BGR2GRAY)
-
-# # Detect keypoints and compute descriptors for both images
-# keypoints1, descriptors1 = sift.detectAndCompute(grayA, None)
-# keypoints2, descriptors2 = sift.detectAndCompute(grayB, None)
-# # Draw the keypoints on the images
-# image1_keypoints = cv2.drawKeypoints(bgrA, keypoints1, None, color = (0,255,0), flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-# image2_keypoints = cv2.drawKeypoints(bgrB, keypoints2, None, color = (0,255,0), flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
-
-# cv2.imshow("window",image1_keypoints)
-# cv2.waitKey(0)
-# cv2.imshow("window",image2_keypoints)
-# cv2.waitKey(0)
     
 firstPoints = []
 secondPoints = []
@@ -95,14 +67,11 @@ for bruh in range(2):
 
     #2
     extrema = [] #y,x
-    #might wanna collect octave and scale indexes
     octaveIndex = 0 #which octave it is in (both DOG and Gaussian octave amounts should be the same)
     for octave in DOGScaleSpace:
         for i in range(1,len(octave)-1): # i = which image in the octave
             prev, curr, next_ = octave[i-1], octave[i], octave[i+1]
-            # scaleSigmaLevel = 1.6 * (1.26**(octaveIndex * i ))
             scaleSigmaLevel = 1.6 * (1.26**i) * (2**octaveIndex)
-            #used gaussian for derivatives since it reduced keypoint detection in the sky
             Dxx = ndimage.gaussian_filter(curr,scaleSigmaLevel, order = (0,2), mode = 'nearest')
             Dyy = ndimage.gaussian_filter(curr,scaleSigmaLevel, order = (2,0), mode = 'nearest')
             Dxy = ndimage.gaussian_filter(curr, scaleSigmaLevel, order = (1,1), mode = 'nearest')
@@ -139,14 +108,14 @@ for bruh in range(2):
         scaleSigmaLevel = fiveT[1][-1]
         windowRadius = int(round(3 * scaleSigmaLevel))
         #expand for boundary pixels:
-        # patch = gaussianOctaves[fiveT[1][0]][fiveT[1][1]][fiveT[1][2] - windowRadius -1 : fiveT[1][2] + windowRadius + 2,
-        #         fiveT[1][3] - windowRadius-1 : fiveT[1][3] + windowRadius + 2]
+        patch = gaussianOctaves[fiveT[1][0]][fiveT[1][1]][fiveT[1][2] - windowRadius -1 : fiveT[1][2] + windowRadius + 2,
+                fiveT[1][3] - windowRadius-1 : fiveT[1][3] + windowRadius + 2]
         # if(patch.shape[0] != patch.shape[1]):continue
         # ycoords, xcoords = np.mgrid[0: windowRadius*2+3, 0: windowRadius*2+3]
         #dont expand:
-        patch = gaussianOctaves[fiveT[1][0]][fiveT[1][1]][fiveT[1][2] - windowRadius : fiveT[1][2] + windowRadius + 1,
-                  fiveT[1][3] - windowRadius : fiveT[1][3] + windowRadius + 1]
-        ycoords, xcoords = np.mgrid[0: windowRadius*2+2, 0: windowRadius*2+2]
+        # patch = gaussianOctaves[fiveT[1][0]][fiveT[1][1]][fiveT[1][2] - windowRadius : fiveT[1][2] + windowRadius + 1,
+        #           fiveT[1][3] - windowRadius : fiveT[1][3] + windowRadius + 1]
+        # ycoords, xcoords = np.mgrid[0: windowRadius*2+2, 0: windowRadius*2+2]
         magnitudes = []
         directions = []
         weightedMag = []
@@ -227,8 +196,6 @@ for bruh in range(2):
                 subregionMag = weightedMag[i*4:(i+1)*4,j*4:(j+1)*4]
                 subregionDir = directions[i*4:(i+1)*4,j*4:(j+1)*4]
                 subregionHist,subregionBin = np.histogram(subregionDir, bins = 8, range = (0,360), weights = subregionMag)
-                # print(subregionHist)
-                # input()
                 descriptors.extend(subregionHist)
         descriptors = np.array(descriptors)
         norm = np.linalg.norm(descriptors)
@@ -243,14 +210,6 @@ for bruh in range(2):
         point[1].append(descriptors)
         if bruh == 0: firstPoints.append(point) #first image
         else: secondPoints.append(point) #second image
-
-desc_stack = np.array([d[-1] for _, d in firstPoints])  # assuming descriptor is last entry
-print("Mean std per descriptor:", np.mean(np.std(desc_stack, axis=1)))
-print("Global std across all descriptors:", np.std(desc_stack))
-
-desc_stack = np.array([d[-1] for _, d in secondPoints])  # assuming descriptor is last entry
-print("Mean std per descriptor:", np.mean(np.std(desc_stack, axis=1)))
-print("Global std across all descriptors:", np.std(desc_stack))
 
 bestMatches = []
 
@@ -292,5 +251,3 @@ plt.figure(figsize=(14, 8))
 plt.imshow(combined)
 plt.axis('off')
 plt.show()
-
-    #compute manhattan distances. 10-15 smallest distances are keypoint matches
