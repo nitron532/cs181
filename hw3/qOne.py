@@ -5,7 +5,7 @@ import cv2
 import os
 from scipy import ndimage
 from scipy.spatial.distance import cdist
-
+import ipdb
 def downSampleByHalf(image):
     return image[::2,::2]
 
@@ -19,12 +19,15 @@ def showMPLDots(rgb,x,y):
     plt.plot(x,y, 'ro')
     plt.show()
 
-def manhattan_distance(a, b):
-    a = np.asarray(a)
-    b = np.asarray(b)
-    if a.shape != b.shape:
-        raise ValueError(f"Arrays must have the same shape, got {a.shape} and {b.shape}")
-    return np.sum(np.abs(a - b))
+# def manhattan_distance(a, b):
+#     # a = np.asarray(a)
+#     # b = np.asarray(b)
+#     if a.shape != b.shape:
+#         raise ValueError(f"Arrays must have the same shape, got {a.shape} and {b.shape}")
+#     return np.sum(np.abs(a - b))
+
+def euclidean_distance(a,b):
+    return np.linalg.norm(a-b)
 
 
 # Initialize the SIFT detector
@@ -100,21 +103,16 @@ for bruh in range(2):
             # scaleSigmaLevel = 1.6 * (1.26**(octaveIndex * i ))
             scaleSigmaLevel = 1.6 * (1.26**i) * (2**octaveIndex)
             #used gaussian for derivatives since it reduced keypoint detection in the sky
-            Dx = ndimage.gaussian_filter(curr,scaleSigmaLevel, order = (0,1))
-            Dy = ndimage.gaussian_filter(curr,scaleSigmaLevel, order = (1,0))
+            Dxx = ndimage.gaussian_filter(curr,scaleSigmaLevel, order = (0,2), mode = 'nearest')
+            Dyy = ndimage.gaussian_filter(curr,scaleSigmaLevel, order = (2,0), mode = 'nearest')
+            Dxy = ndimage.gaussian_filter(curr, scaleSigmaLevel, order = (1,1), mode = 'nearest')
+            TrH = Dxx + Dyy
+            DetH = Dxx*Dyy - Dxy**2
             for y in range(1, curr.shape[0]-1):
                 for x in range(1, curr.shape[1]-1):
-                    Dxx = np.square(Dx[y][x])
-                    Dyy = np.square(Dy[y][x])
-                    Dxy = np.multiply(Dx[y][x],Dy[y][x])
-                    # Dxx = curr[y, x+1] + curr[y, x-1] - 2*curr[y, x]
-                    # Dyy = curr[y+1, x] + curr[y-1, x] - 2*curr[y, x]
-                    # Dxy = (curr[y+1,x+1] - curr[y+1,x-1] - curr[y-1,x+1] + curr[y-1,x-1])/4
                     #3a and b
-                    TrH = Dxx + Dyy
-                    DetH = Dxx*Dyy - Dxy**2
-                    hessianRatio = TrH**2 / (DetH + 1e12)
-                    if DetH <= 0 or hessianRatio > ((11**2)/10):
+                    hessianRatio = TrH[y,x]**2 / (DetH[y,x] + 1e-12)
+                    if DetH[y][x] <= 0 or hessianRatio > ((11**2)/10):
                         continue
                     currentValue = curr[y,x]
                     cube = np.stack([prev[y-1:y+2, x-1:x+2],
@@ -134,27 +132,36 @@ for bruh in range(2):
     #4
     #a
     secondaryExtrema = []
+
+
+    #36 bin
     for fiveT in extrema:
         scaleSigmaLevel = fiveT[1][-1]
         windowRadius = int(round(3 * scaleSigmaLevel))
         #expand for boundary pixels:
-        patch = gaussianOctaves[fiveT[1][0]][fiveT[1][1]][fiveT[1][2] - windowRadius -1 : fiveT[1][2] + windowRadius + 2,
-                fiveT[1][3] - windowRadius-1 : fiveT[1][3] + windowRadius + 2]
-        if(patch.shape[0] != patch.shape[1]):continue
-        ycoords, xcoords = np.mgrid[0: windowRadius*2+3, 0: windowRadius*2+3]
+        # patch = gaussianOctaves[fiveT[1][0]][fiveT[1][1]][fiveT[1][2] - windowRadius -1 : fiveT[1][2] + windowRadius + 2,
+        #         fiveT[1][3] - windowRadius-1 : fiveT[1][3] + windowRadius + 2]
+        # if(patch.shape[0] != patch.shape[1]):continue
+        # ycoords, xcoords = np.mgrid[0: windowRadius*2+3, 0: windowRadius*2+3]
         #dont expand:
-        # patch = gaussianOctaves[fiveT[0]][fiveT[1]][fiveT[2] - windowRadius : fiveT[2] + windowRadius + 1,
-        #           fiveT[3] - windowRadius : fiveT[3] + windowRadius + 1]
-        # ycoords, xcoords = np.mgrid[0: windowRadius*2+1, 0: windowRadius*2+1]
-        Ix = ndimage.gaussian_filter(patch,scaleSigmaLevel, order = (0,1))
-        Iy = ndimage.gaussian_filter(patch,scaleSigmaLevel, order = (1,0))
-        mag = np.hypot(Ix,Iy)
-        direction = np.arctan2(Iy,Ix)
-        #should be able to index mag and direction
-        weightedMag = np.multiply(mag,np.exp(-((xcoords - windowRadius)**2 +\
-                                        (ycoords- windowRadius)**2) /\
-                                            2*(1.5 * scaleSigmaLevel)**2))
-        directionsDegrees = np.degrees(direction)%360
+        patch = gaussianOctaves[fiveT[1][0]][fiveT[1][1]][fiveT[1][2] - windowRadius : fiveT[1][2] + windowRadius + 1,
+                  fiveT[1][3] - windowRadius : fiveT[1][3] + windowRadius + 1]
+        ycoords, xcoords = np.mgrid[0: windowRadius*2+2, 0: windowRadius*2+2]
+        magnitudes = []
+        directions = []
+        weightedMag = []
+        for i in range(1, patch.shape[0]-1):
+            for j in range(1, patch.shape[1]-1):
+                one = patch[i,j+1] - patch[i,j-1]
+                two = patch[i+1,j] - patch[i-1,j]
+                mag = np.sqrt(one**2 + two**2)
+                direc = np.degrees(np.arctan2(two,one))
+                magnitudes.append(mag)
+                directions.append(direc)
+                gaussianWeight = np.exp(-(((j - windowRadius)**2 + (i - windowRadius)**2) / (2 * (1.5 * scaleSigmaLevel)**2)))
+                weightedMag.append(mag * gaussianWeight)
+            
+        directionsDegrees = np.degrees(directions)%360
         hist, binEdges = np.histogram(directionsDegrees, bins =36, range =(0,360), weights = weightedMag)
         binEdges = binEdges[:-1]
         maxBinValue = np.max(hist)
@@ -170,34 +177,58 @@ for bruh in range(2):
     extrema.extend(secondaryExtrema)
     display_img = original
     display_img =255 - (display_img * 255).astype(np.uint8)
+
     if bruh == 0: displayOne = display_img
     else: displayTwo = display_img
+
+
+    #8 bin
     for point in extrema:
-        img = gaussianOctaves[point[1][0]][point[1][1]]
-        # ogX, ogY = point[1][3] * 2 ** point[1][0], point[1][2] * 2 **point[1][0]
-        ogX, ogY = point[1][3], point[1][2]
-        # patch = img[ogY-7:ogY+9, ogX-7:ogX+9]
-        scale_factor = 2 ** point[1][0]
-        size = int(8 * scale_factor)
-        patch = img[ogY - size:ogY + size, ogX - size:ogX + size]
-        if(patch.shape[0] != patch.shape[1]):continue
-        rotated = ndimage.rotate(patch, -point[1][-1], reshape = False, order = 1) #cval=np.mean(patch))
-        Ix = ndimage.sobel(rotated, axis = 1)
-        Iy = ndimage.sobel(rotated, axis = 0)
-        mag = np.hypot(Ix,Iy)
-        ycoords,xcoords = np.mgrid[0:16, 0:16]
-        directions = (np.degrees(np.arctan2(Ix,Iy))) % 360
-        windowRadius = 7.5  # center of the 16x16 patch
-        gaussianWeight = np.exp(-((xcoords - windowRadius)**2 + (ycoords - windowRadius)**2) /
-                                (2 * (1.5 * point[1][-2])**2))
-        if mag.shape != gaussianWeight.shape: continue
-        weightedMag = np.multiply(mag, gaussianWeight)
+        # ipdb.set_trace()
+        img = gaussianOctaves[point[1][0]][point[1][1]] #which octave, which image in that octave
+        ogX, ogY = point[1][3], point[1][2] #x, y
+        # scale_factor = 2 ** point[1][0]
+
+        # size = int(8 * scale_factor) 
+        # patch = img[ogY - size:ogY + size+1, ogX - size:ogX + size+1]
+        half_size = 8
+        if ogY - half_size < 0 or ogY + half_size+1 >= img.shape[0]-1 \
+        or ogX - half_size < 0 or ogX + half_size+1 >= img.shape[1]-1:
+            continue
+        patch = img[ogY - 9:ogY + 9, ogX-9: ogX+9]
+        # if(patch.shape[0] != patch.shape[1]):continue
+        # rotated = ndimage.rotate(patch, -point[1][-1], reshape = False, order = 1) #cval=np.mean(patch)) 
+        rotPatch = ndimage.rotate(patch,-point[1][-1],reshape = False, order = 1)
+        windowRadius = 7.5
+        weightedMag = []
+        directions = []
+        for i in range(1,patch.shape[0]-1):
+            magRow = []
+            dirRow = []
+            for j in range(1,patch.shape[1]-1):
+                one = rotPatch[i,j+1] - rotPatch[ i,j-1]
+                two = rotPatch[i+1,j] - rotPatch[i-1,j]
+                mag = np.sqrt(one**2 + two**2)
+                angle = (np.degrees(np.arctan2(two,one))+360) % 360
+                dirRow.append(angle)
+                gaussianWeight = np.exp(-(((j - windowRadius)**2 + (i - windowRadius)**2) / (2 * (1.5 * point[1][-2])**2)))
+                magRow.append(mag*gaussianWeight)
+            weightedMag.append(magRow)
+            directions.append(dirRow)
+        # ipdb.set_trace()
+        length = max(map(len, weightedMag))
+        weightedMag=np.array([xi+[0]*(length-len(xi)) for xi in weightedMag])
+        length = max(map(len, directions))
+        directions = np.array([xi + [0]* (length-len(xi)) for xi in directions])
+
         descriptors = []
         for i in range(4):
             for j in range(4):
-                subregionMag = weightedMag[i*4:(i+1)*4, (j)*4:(j+1)*4]
-                subregionDir = directions[i*4:(i+1)*4, (j)*4:(j+1)*4]
+                subregionMag = weightedMag[i*4:(i+1)*4,j*4:(j+1)*4]
+                subregionDir = directions[i*4:(i+1)*4,j*4:(j+1)*4]
                 subregionHist,subregionBin = np.histogram(subregionDir, bins = 8, range = (0,360), weights = subregionMag)
+                # print(subregionHist)
+                # input()
                 descriptors.extend(subregionHist)
         descriptors = np.array(descriptors)
         norm = np.linalg.norm(descriptors)
@@ -210,24 +241,39 @@ for bruh in range(2):
         if norm > 1e-6:
             descriptors /= norm
         point[1].append(descriptors)
-        if bruh == 0: firstPoints.append(point)
-        else: secondPoints.append(point)
+        if bruh == 0: firstPoints.append(point) #first image
+        else: secondPoints.append(point) #second image
+
+desc_stack = np.array([d[-1] for _, d in firstPoints])  # assuming descriptor is last entry
+print("Mean std per descriptor:", np.mean(np.std(desc_stack, axis=1)))
+print("Global std across all descriptors:", np.std(desc_stack))
+
+desc_stack = np.array([d[-1] for _, d in secondPoints])  # assuming descriptor is last entry
+print("Mean std per descriptor:", np.mean(np.std(desc_stack, axis=1)))
+print("Global std across all descriptors:", np.std(desc_stack))
+
+bestMatches = []
 
 for firsts in firstPoints:
-    best = (900000, 0)
+    best_dist = float('inf')
+    best_second = None
     for seconds in secondPoints:
-        out = manhattan_distance(firsts[1][-1], seconds[1][-1]) #descriptors
-        if out < best[0]:
-            best = (out,seconds)
-    points = [firsts,best[1]]
-    bestMatches.append((out,points))
+        out = euclidean_distance(firsts[1][-1], seconds[1][-1]) #descriptors of both points
+        if out < best_dist:
+            best_dist = out
+            best_second = seconds
+    if best_second is not None:
+        points = [firsts,best_second]
+        bestMatches.append((best_dist,points))
+        secondPoints.remove(best_second)
 bestMatches.sort(key = lambda x: x[0])
+
 
 #at this point, point tuple looks like:
 #(DOGresponse, [octaveIndex,scaleIndex,y,x,scaleSigmaLevel,angle, descriptor])
 
 combined = np.hstack((displayOne,np.zeros((displayOne.shape[0],50,displayOne.shape[2]), dtype = displayOne.dtype), displayTwo))
-offset_x = displayOne.shape[1]  # width offset for right image
+offset_x = displayOne.shape[1] + 50  # width offset for right image
 
 # Draw top N matches
 for (dist, (kp1, kp2)) in bestMatches[:30]:
@@ -243,27 +289,8 @@ for (dist, (kp1, kp2)) in bestMatches[:30]:
     cv2.line(combined, (int(x1), int(y1)), (int(x2), int(y2)), color, 1)
 
 plt.figure(figsize=(14, 8))
-plt.imshow(combined)#cv2.cvtColor(combined, cv2.COLOR_BGR2RGB))
+plt.imshow(combined)
 plt.axis('off')
 plt.show()
-# for i in range(len(bestMatches)):
-#     ogX1, ogY1 = bestMatches[i][1][0][1][3] * 2 ** bestMatches[i][1][0][1][0], bestMatches[i][1][0][1][2] * 2 **bestMatches[i][1][0][1][0]
-#     ogX2, ogY2 = bestMatches[i][1][1][1][3] * 2 ** bestMatches[i][1][1][1][0], bestMatches[i][1][1][1][2] * 2 **bestMatches[i][1][1][1][0]
-#     # ogX1, ogY1 = bestMatches[i][1][0][1][3], bestMatches[i][1][0][1][2]
-#     # ogX2, ogY2 = bestMatches[i][1][1][1][3], bestMatches[i][1][1][1][2]
-#     rr, cc = ski.draw.circle_perimeter(int(round(ogY1)), int(round(ogX1)), (int(round(bestMatches[i][1][0][1][-3])*2.75))+10, shape=original.shape)
-#     match bestMatches[i][1][0][1][0]:
-#         case 0: displayOne[rr,cc] = [0,255,0] #green
-#         case 1: displayOne[rr,cc] = [0,0,255] #blue
-#         case 2: displayOne[rr,cc] = [255,255,0] #yellow
-#     rr, cc = ski.draw.circle_perimeter(int(round(ogY2)), int(round(ogX2)), (int(round(bestMatches[i][1][1][1][-3])))+10, shape=original.shape)
-#     match bestMatches[i][1][1][1][0]:
-#         case 0: displayTwo[rr,cc] = [0,255,0] #green
-#         case 1: displayTwo[rr,cc] = [0,0,255] #blue
-#         case 2: displayTwo[rr,cc] = [255,255,0] #yellow
-# showMPL(displayOne)
-# showMPL(displayTwo)
-
-
 
     #compute manhattan distances. 10-15 smallest distances are keypoint matches
